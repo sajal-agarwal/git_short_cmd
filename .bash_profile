@@ -34,8 +34,16 @@ alias am='git add -u'
 #Add All
 alias aa='git add -A'
 
-#Commit Added files
-alias ca='git commit'
+#Check Out
+alias co='git checkout '
+
+#git Stash Changes
+alias sc='git stash'
+
+#git Stash Pop
+alias sp='git stash pop'
+
+alias mb='git merge --no-commit '
 
 #Return if the output of previous command is not zero
 alias return_if_not_0='RES=$?; if [ $RES != 0 ]; then return $RES; fi'
@@ -53,6 +61,15 @@ function cm {
 	if [ "$*" != "" ]; then
 		echo "${bold}Committinging all modified and deleted files...${normal}"
 		git commit -a "$*"
+		return_if_not_0
+	fi
+}
+
+#Commit Added files
+function ca {
+	if [ "$*" != "" ]; then
+		echo "${bold}Committinging added files...${normal}"
+		git commit "$*"
 		return_if_not_0
 	fi
 }
@@ -80,8 +97,8 @@ function pull {
 		
 		echo "${bold}stash in progress...${normal}"
 		STASH_MSG=$(git stash)
-		echo $STASH_MSG
 		return_if_not_0
+		echo $STASH_MSG
 	fi
 		
 	echo "${bold}pull in progress...${normal}"
@@ -127,7 +144,7 @@ function pcb {
 		git push origin HEAD:refs/for/$CUR_BRANCH 2>&1 | tee "$HOME/tmp.txt"
 		return_if_not_0
     else
-		git push origin HEAD:refs/for/$CUR_BRANCH "$*" 2>&1 | tee "$HOME/tmp.txt"
+		git push origin HEAD:refs/for/$CUR_BRANCH $* 2>&1 | tee "$HOME/tmp.txt"
 		return_if_not_0
 	fi
 	
@@ -156,10 +173,13 @@ function pcb {
 
 #Push to Current Branch
 function push {
+	add_files=0
+	commit_files=0
 	files_found=0
 	commit_msg_found=0
 	commit_msg=""
 	file_names=()
+	extra_args=()
 	
 	for arg in "$@"
 	do
@@ -169,46 +189,59 @@ function push {
 		
 		if [ $files_found == 1 ]; then
 			file_names+=("$arg")
+			continue
 		fi
 		
 		if [ $commit_msg_found == 1 ]; then
 			commit_msg="$arg"
 			commit_msg_found=0
+			continue
 		fi	
 		
 		if [ "$arg" == "-a" ]; then
+			add_files=1
 			files_found=1
+			continue
 		fi
 		
 		if [ "$arg" == "-m" ]; then
+			commit_files=1
 			commit_msg_found=1
-		fi	
+			continue
+		fi
+		
+		extra_args+=("$arg")
 	done
 	
+	if [ $commit_files == 0 ] && [ $add_files == 1 ]; then
+		echo "Please provide the commit meesage with -m ..."
+		return 1
+	fi
+	
+	pull
+	return_if_not_0
+	
 	if [ "$commit_msg" != "" ]; then
-		pull
-		return_if_not_0
-		if [ ${#file_names[@]} -ne 0 ]; then
-			echo "${bold}Adding files...${normal}"
+		echo "file_found = $files_found"
+		if [ $add_files == 1 ]; then
+			if [ ${#file_names[@]} -ne 0 ]; then
+				echo "${bold}Adding files...${normal}"
+			fi
 			for file in "${file_names[@]}"
 			do
 			   echo "$file"
 			   a "$file"
 			   return_if_not_0
 			done
-			echo "${bold}Committinging added files...${normal}"
 			ca -m $commit_msg
 			return_if_not_0
 		else
 			cm -m $commit_msg
 			return_if_not_0
 		fi
-	elif [ ${#file_names[@]} -ne 0 ]; then
-		echo "Please provide the commit meesage with -m ..."
-		return 1
 	fi
 	
-	pcb
+	pcb "${extra_args[@]}"
 }
 
 #Files In Commit
